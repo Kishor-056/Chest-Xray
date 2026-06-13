@@ -11,7 +11,7 @@ const getBaseUrl = () => {
   } catch (e) {
     console.warn('Failed to load API URL from settings', e);
   }
-  return 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+  return 'http://localhost:8000';
 };
 
 const API_BASE_URL = getBaseUrl();

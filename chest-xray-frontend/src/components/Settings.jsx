@@ -12,7 +12,7 @@ function Settings() {
     confidence: '',
     notes: ''
   });
-  const [apiUrl, setApiUrl] = useState('https://monocyclic-shara-unrotative.ngrok-free.dev');
+  const [apiUrl, setApiUrl] = useState('http://localhost:8000');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [theme, setTheme] = useState('light');
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ function Settings() {
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
       setDefaultModel(settings.defaultModel || 'ensemble');
-      setApiUrl(settings.apiUrl || 'https://monocyclic-shara-unrotative.ngrok-free.dev');
+      setApiUrl(settings.apiUrl || 'http://localhost:8000');
       setAutoRefresh(settings.autoRefresh || false);
       setTheme(settings.theme || 'light');
     }
@@ -111,7 +111,7 @@ function Settings() {
   const handleResetSettings = () => {
     localStorage.removeItem('appSettings');
     setDefaultModel('ensemble');
-    setApiUrl('https://monocyclic-shara-unrotative.ngrok-free.dev');
+    setApiUrl('http://localhost:8000');
     setAutoRefresh(false);
     setTheme('light');
     toast.info('Settings reset to defaults');

@@ -1,10 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, Form, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import uvicorn
-import time
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Dict
+import datetime
+import base64
 
-app = FastAPI()
+app = FastAPI(title="Mock Chest X-Ray AI API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,100 +16,254 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+CLASS_NAMES = ['COVID-19', 'Normal', 'Pneumonia', 'Tuberculosis']
+MODEL_LIST = ['DenseNet169', 'EfficientNet-B5', 'ViT-Base', 'ViT-Base-Enhanced', 'Enhanced-Hybrid']
+
+# Tiny 1x1 gray pixel PNG base64 for GradCAM mock
+MOCK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+MOCK_IMAGE_DATA = f"data:image/png;base64,{MOCK_PNG_BASE64}"
+
+# 1. Health check
 @app.get("/")
-def read_root():
-    return {"status": "online", "message": "Mock Backend API Running"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "online", "models_loaded": 5, "device": "cpu"}
-
-@app.post("/predict")
-async def predict(
-    file: UploadFile = File(...),
-    model_name: str = Form("DenseNet-169")
-):
-    # Simulate processing time
-    time.sleep(1)
-    
-    # Check if the file is an image
-    content_type = file.content_type
-    if not content_type.startswith("image/"):
-        return JSONResponse(status_code=400, content={"detail": "Invalid file format. Please upload an image."})
-    
+async def root():
     return {
-        "success": True,
-        "prediction": "Pneumonia",
-        "confidence": 98.5,
-        "model_used": model_name,
-        "inference_time": "0.1s"
+        "status": "healthy",
+        "models_loaded": len(MODEL_LIST),
+        "available_models": MODEL_LIST,
+        "device": "cpu"
     }
 
-@app.post("/batch-predict")
-async def batch_predict(files: list[UploadFile] = File(...)):
-    time.sleep(1)
-    results = []
-    for f in files:
-        results.append({
-            "filename": f.filename,
+# 2. Detailed Health check
+@app.get("/health/detailed")
+async def health_detailed():
+    return {
+        "status": "healthy",
+        "models": MODEL_LIST,
+        "device": "cpu",
+        "cuda_available": False
+    }
+
+# 3. List models
+@app.get("/models")
+async def get_models():
+    return {
+        "models": MODEL_LIST,
+        "total": len(MODEL_LIST),
+        "ensemble_available": True
+    }
+
+# 4. Model info
+@app.get("/model/info")
+async def model_info_alt():
+    return {"models": MODEL_LIST, "classes": CLASS_NAMES}
+
+@app.get("/info/{model_name}")
+async def model_info(model_name: str):
+    return {
+        "name": model_name,
+        "classes": CLASS_NAMES,
+        "status": "loaded"
+    }
+
+# 5. Upload image
+@app.post("/upload")
+async def upload(file: UploadFile = File(...)):
+    return {"success": True, "filename": file.filename}
+
+# Helper to generate mock probabilities
+def get_mock_probs(prediction="Normal"):
+    probs = {}
+    if prediction == "Normal":
+        probs = {'COVID-19': 0.1, 'Normal': 0.7, 'Pneumonia': 0.15, 'Tuberculosis': 0.05}
+    elif prediction == "Pneumonia":
+        probs = {'COVID-19': 0.05, 'Normal': 0.1, 'Pneumonia': 0.8, 'Tuberculosis': 0.05}
+    else:
+        probs = {'COVID-19': 0.25, 'Normal': 0.25, 'Pneumonia': 0.25, 'Tuberculosis': 0.25}
+    return probs
+
+# 6. Predict
+@app.post("/predict")
+async def predict(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
+    return {
+        "success": True,
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "all_probabilities": get_mock_probs("Normal"),
+        "model_used": model_name,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+# 7. Realtime predict
+@app.post("/predict/realtime")
+async def realtime(file: UploadFile = File(...)):
+    return {"prediction": "Normal", "confidence": 0.70}
+
+# 8. RAG Analyze
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...), query: str = Form("Explain")):
+    return {
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "all_probabilities": get_mock_probs("Normal"),
+        "model_used": "Ensemble",
+        "rag_context": "Normal X-rays have clear lung fields."
+    }
+
+# 9. Explain
+@app.post("/explain")
+async def explain(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
+    return {
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "all_probabilities": get_mock_probs("Normal"),
+        "model_used": model_name,
+        "gradcam": MOCK_PNG_BASE64,
+        "explanation": "Predicted Normal. Clear lung fields observed."
+    }
+
+# 10. Compare
+@app.post("/compare")
+async def compare(file: UploadFile = File(...)):
+    individual = {}
+    for model in MODEL_LIST:
+        individual[model] = {
             "prediction": "Normal",
-            "confidence": 95.0
+            "confidence": 0.70,
+            "all_probabilities": get_mock_probs("Normal"),
+            "model_used": model
+        }
+    return {
+        "individual_results": individual,
+        "agreement": {
+            "consensus": True,
+            "agreement_rate": 1.0,
+            "most_common": "Normal"
+        },
+        "processing_time": 0.25,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+@app.post("/compare_models")
+async def compare_alt(file: UploadFile = File(...)):
+    return await compare(file)
+
+# 11. GradCAM
+@app.post("/gradcam")
+async def gradcam(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
+    return {
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "model_used": model_name,
+        "gradcam": MOCK_PNG_BASE64,
+        "heatmap_base64": MOCK_PNG_BASE64
+    }
+
+@app.post("/gradcam/enhanced")
+async def gradcam_enhanced(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
+    return {
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "model_used": model_name,
+        "overlay": MOCK_PNG_BASE64
+    }
+
+@app.post("/gradcam/heatmap")
+async def gradcam_heatmap(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
+    return {
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "model_used": model_name,
+        "heatmap": MOCK_PNG_BASE64
+    }
+
+# 12. Report
+@app.post("/report")
+async def report(file: UploadFile = File(...), patient_id: str = Form("P001")):
+    return {
+        "patient_id": patient_id,
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+@app.post("/clinical_report")
+async def clinical_report(file: UploadFile = File(...), patient_id: str = Form("P001")):
+    return {
+        "patient_id": patient_id,
+        "prediction": "Normal",
+        "confidence": 0.70,
+        "clinical_notes": ["Lung fields are clear.", "No pleural effusion seen."],
+        "recommended_actions": ["Routine follow-up in 12 months."],
+        "findings": "The chest radiograph shows clear lung fields without focal consolidation, effusion, or pneumothorax.",
+        "probabilities": get_mock_probs("Normal"),
+        "model_used": "Ensemble",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+# 13. Batch Processing
+@app.post("/predict/batch")
+async def batch_predict(files: List[UploadFile] = File(...), model_name: str = Form("DenseNet169")):
+    results = []
+    for file in files:
+        results.append({
+            "filename": file.filename,
+            "prediction": "Normal",
+            "confidence": 0.70,
+            "all_probabilities": get_mock_probs("Normal"),
+            "model_used": model_name
         })
     return {
         "success": True,
-        "batch_id": "BATCH_123",
         "results": results,
-        "summary": {"Normal": len(files), "Pneumonia": 0}
+        "statistics": {
+            "total": len(files),
+            "success_rate": 1.0,
+            "avg_confidence": 0.70,
+            "disease_distribution": {"Normal": len(files)}
+        },
+        "processing_time": 0.15,
+        "total_processed": len(files)
     }
 
-@app.post("/compare-models")
-async def compare_models(file: UploadFile = File(...)):
-    time.sleep(1)
+@app.post("/predict/batch/advanced")
+async def batch_advanced(files: List[UploadFile] = File(...)):
+    return await batch_predict(files, "ensemble")
+
+@app.post("/batch_predict")
+async def batch_predict_alt(files: List[UploadFile] = File(...)):
+    return await batch_predict(files)
+
+# 14. Feedback
+@app.post("/feedback")
+async def feedback(prediction_id: str = Form(...), correct_label: str = Form(...)):
+    return {"success": True, "total_feedback": 1}
+
+# 15. Switch model
+@app.post("/model/switch")
+async def switch_model(model_name: str = Form(...)):
+    return {"success": True, "current_model": model_name}
+
+# 16. Metrics
+@app.get("/metrics")
+async def metrics():
     return {
-        "success": True,
-        "best_model": "DenseNet-169",
-        "results": [
-            {"model": "DenseNet-169", "prediction": "Pneumonia", "confidence": 98.5},
-            {"model": "EfficientNet-B5", "prediction": "Pneumonia", "confidence": 97.2},
-            {"model": "ResNet-50", "prediction": "Normal", "confidence": 55.1}
-        ]
+        "total_predictions": 10,
+        "models_loaded": len(MODEL_LIST),
+        "device": "cpu"
     }
 
-@app.post("/generate-gradcam")
-async def generate_gradcam(file: UploadFile = File(...)):
-    time.sleep(1)
+# 17. Analytics
+@app.get("/analytics")
+async def analytics():
     return {
-        "success": True,
-        "heatmap_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", # 1x1 transparent pixel
-        "overlay_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        "total_predictions": 10,
+        "predictions_by_class": {"Normal": 8, "Pneumonia": 2}
     }
 
-@app.post("/generate-report")
-async def generate_report(
-    patient_id: str = Form(...),
-    file: UploadFile = File(...)
-):
-    time.sleep(1)
-    return {
-        "success": True,
-        "report_id": "REP_999",
-        "patient_id": patient_id,
-        "diagnosis": "Pneumonia",
-        "confidence": 98.5,
-        "pdf_url": "#"
-    }
-
-@app.post("/submit-feedback")
-async def submit_feedback(
-    prediction_id: str = Form(...),
-    actual_diagnosis: str = Form(...),
-    comments: str = Form(...)
-):
-    return {
-        "success": True,
-        "message": "Feedback received successfully"
-    }
+# 18. Patient history
+@app.get("/history/{patient_id}")
+async def history(patient_id: str):
+    return {"patient_id": patient_id, "history": []}
 
 if __name__ == "__main__":
-    print("Starting Mock Backend on port 8000...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
