@@ -57,11 +57,17 @@ jobs:
       run: python selenium_e2e_tests.py
       working-directory: ./chest-xray-frontend
 
-    - name: Upload Test Report Excel Sheet
+    - name: Generate Backend Report
+      run: python generate_backend_report.py
+      working-directory: ./chest-xray-frontend
+
+    - name: Upload Test Reports Excel Sheets
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: e2e-test-report
-        path: ./chest-xray-frontend/Test_Report.xlsx
+        path: |
+          ./chest-xray-frontend/Test_Report.xlsx
+          ./chest-xray-frontend/Backend_Test_Report.xlsx
         if-no-files-found: error
         retention-days: 14
