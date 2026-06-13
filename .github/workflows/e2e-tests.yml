@@ -1,0 +1,60 @@
+name: E2E Automation Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+        cache-dependency-path: './chest-xray-frontend/package-lock.json'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install Node dependencies
+      run: npm install
+      working-directory: ./chest-xray-frontend
+
+    - name: Build React application
+      run: npm run build
+      working-directory: ./chest-xray-frontend
+
+    - name: Start Vite Preview Server
+      run: |
+        npm run preview -- --port 3000 --host &
+        echo "Waiting for Vite preview server to spin up on port 3000..."
+        npx wait-on http://localhost:3000 --timeout 45000
+      working-directory: ./chest-xray-frontend
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install selenium pandas openpyxl webdriver-manager
+
+    - name: Run Selenium E2E Tests
+      run: python selenium_e2e_tests.py
+      working-directory: ./chest-xray-frontend
+
+    - name: Upload Test Report Excel Sheet
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-report
+        path: ./chest-xray-frontend/Test_Report.xlsx
+        if-no-files-found: error
+        retention-days: 14
