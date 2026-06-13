@@ -65,7 +65,12 @@ jobs:
       run: python generate_backend_report.py
       working-directory: ./chest-xray-frontend
 
-    - name: Upload Test Reports Excel Sheets
+    - name: Convert Reports to HTML Dashboard and Job Summary
+      if: always()
+      run: python convert_reports_to_html.py
+      working-directory: ./chest-xray-frontend
+
+    - name: Upload Test Reports Excel Sheets & HTML Dashboard
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -73,5 +78,6 @@ jobs:
         path: |
           ./chest-xray-frontend/Test_Report.xlsx
           ./chest-xray-frontend/Backend_Test_Report.xlsx
+          ./chest-xray-frontend/Test_Report.html
         if-no-files-found: error
         retention-days: 14
