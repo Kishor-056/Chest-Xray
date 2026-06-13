@@ -62,7 +62,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always() # Ensure reports are uploaded even if tests fail
       with:
-        name: Automation-Reports
+        name: e2e-test-report
         path: |
           Test_Report_Passed.xlsx
           Backend_Test_Report.xlsx
