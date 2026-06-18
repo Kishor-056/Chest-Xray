@@ -62,6 +62,12 @@ def run_tests():
         # 1. Load Homepage & Check Status
         try:
             driver.get(base_url)
+            try:
+                driver.execute_script("window.localStorage.setItem('isAuthenticated', 'true');")
+                driver.execute_script("window.localStorage.setItem('clinicianEmail', 'doctor@chestxray.ai');")
+                driver.refresh()
+            except Exception as js_err:
+                print(f"Failed to inject auth state: {js_err}")
             header = wait.until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
             status_dot = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "status-dot")))
             status_text = driver.find_element(By.CLASS_NAME, "status-text")
@@ -257,6 +263,7 @@ def generate_report_excel():
 if __name__ == "__main__":
     try:
         run_tests()
+        generate_report_excel()
     except Exception as ex:
         print(f"Fatal execution error: {ex}")
         populate_remaining_frontend_tests()
