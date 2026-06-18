@@ -81,11 +81,6 @@ function Login({ onLogin }) {
         </form>
 
         <div className="login-footer">
-          <div className="credentials-tip">
-            <strong>Demonstration Credentials:</strong>
-            <p>Email: <code>doctor@chestxray.ai</code></p>
-            <p>Password: <code>clinical2026</code></p>
-          </div>
           <p className="safety-warning">
             ⚠️ Clinician authentication is required for secure workspace access.
           </p>
