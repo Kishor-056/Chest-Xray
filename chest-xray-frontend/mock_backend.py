@@ -23,19 +23,97 @@ MODEL_LIST = ['DenseNet169', 'EfficientNet-B5', 'ViT-Base', 'ViT-Base-Enhanced',
 MOCK_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 MOCK_IMAGE_DATA = f"data:image/png;base64,{MOCK_PNG_BASE64}"
 
+import hashlib
+import uuid
+import json
+import os
+
+prediction_hashes = {}
+feedback_memory = {}
+feedback_data = []
+FEEDBACK_MEMORY_FILE = "./chest/cache/feedback_memory.json"
+
+def load_feedback_memory():
+    global feedback_memory
+    try:
+        if os.path.exists(FEEDBACK_MEMORY_FILE):
+            with open(FEEDBACK_MEMORY_FILE, 'r') as f:
+                feedback_memory = json.load(f)
+            print(f"Loaded {len(feedback_memory)} feedback overrides.")
+    except Exception as e:
+        print(f"Error loading feedback memory: {e}")
+
+def save_feedback_memory():
+    try:
+        os.makedirs(os.path.dirname(FEEDBACK_MEMORY_FILE), exist_ok=True)
+        with open(FEEDBACK_MEMORY_FILE, 'w') as f:
+            json.dump(feedback_memory, f)
+    except Exception as e:
+        print(f"Error saving feedback memory: {e}")
+
+load_feedback_memory()
+
+def check_prediction_override(image_bytes, filename=None):
+    img_hash = hashlib.md5(image_bytes).hexdigest()
+    if img_hash in feedback_memory:
+        label = feedback_memory[img_hash]
+        print(f"Applying feedback memory override: {label} for hash {img_hash}")
+        all_probs = {
+            'COVID-19': 0.02,
+            'Normal': 0.02,
+            'Pneumonia': 0.02,
+            'Tuberculosis': 0.02
+        }
+        if label in all_probs:
+            all_probs[label] = 0.94
+            total = sum(all_probs.values())
+            all_probs = {k: v / total for k, v in all_probs.items()}
+        return {
+            "prediction": label,
+            "confidence": 0.94,
+            "all_probabilities": all_probs,
+            "explanation": f"Overridden by user feedback diagnosis: {label}."
+        }, img_hash
+
+    if filename:
+        name_lower = filename.lower()
+        target_label = None
+        if "pneumonia" in name_lower:
+            target_label = "Pneumonia"
+        elif "tuberculosis" in name_lower or "tb" in name_lower:
+            target_label = "Tuberculosis"
+        elif "covid" in name_lower:
+            target_label = "COVID-19"
+        elif "normal" in name_lower or "clear" in name_lower:
+            target_label = "Normal"
+
+        if target_label:
+            print(f"Applying filename override: {target_label} for file {filename}")
+            all_probs = {
+                'COVID-19': 0.02,
+                'Normal': 0.02,
+                'Pneumonia': 0.02,
+                'Tuberculosis': 0.02
+            }
+            all_probs[target_label] = 0.94
+            total = sum(all_probs.values())
+            all_probs = {k: v / total for k, v in all_probs.items()}
+            return {
+                "prediction": target_label,
+                "confidence": 0.94,
+                "all_probabilities": all_probs,
+                "explanation": f"Detected filename keyword: predicting {target_label}."
+            }, img_hash
+
+    return None, img_hash
+
 # 1. Health check
 @app.get("/")
-async def root():
-    return {
-        "status": "healthy",
-        "models_loaded": len(MODEL_LIST),
-        "available_models": MODEL_LIST,
-        "device": "cpu"
-    }
+def read_root():
+    return {"status": "healthy", "message": "Mock Backend API Running"}
 
-# 2. Detailed Health check
 @app.get("/health/detailed")
-async def health_detailed():
+def detailed_health_check():
     return {
         "status": "healthy",
         "models": MODEL_LIST,
@@ -84,42 +162,112 @@ def get_mock_probs(prediction="Normal"):
 # 6. Predict
 @app.post("/predict")
 async def predict(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
-    return {
-        "success": True,
-        "prediction": "Normal",
-        "confidence": 0.70,
-        "all_probabilities": get_mock_probs("Normal"),
-        "model_used": model_name,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
+    try:
+        file_bytes = await file.read()
+        override, img_hash = check_prediction_override(file_bytes, file.filename)
+        prediction_id = f"pred_{uuid.uuid4().hex[:10]}"
+        prediction_hashes[prediction_id] = img_hash
+
+        if override:
+            result = {
+                "success": True,
+                "prediction": override["prediction"],
+                "confidence": override["confidence"],
+                "all_probabilities": override["all_probabilities"],
+                "model_used": model_name,
+                "prediction_id": prediction_id,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        else:
+            result = {
+                "success": True,
+                "prediction": "Normal",
+                "confidence": 0.70,
+                "all_probabilities": get_mock_probs("Normal"),
+                "model_used": model_name,
+                "prediction_id": prediction_id,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # 7. Realtime predict
 @app.post("/predict/realtime")
 async def realtime(file: UploadFile = File(...)):
-    return {"prediction": "Normal", "confidence": 0.70}
+    try:
+        file_bytes = await file.read()
+        override, _ = check_prediction_override(file_bytes, file.filename)
+        if override:
+            return {"prediction": override['prediction'], "confidence": override['confidence']}
+        return {"prediction": "Normal", "confidence": 0.70}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # 8. RAG Analyze
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...), query: str = Form("Explain")):
-    return {
-        "prediction": "Normal",
-        "confidence": 0.70,
-        "all_probabilities": get_mock_probs("Normal"),
-        "model_used": "Ensemble",
-        "rag_context": "Normal X-rays have clear lung fields."
-    }
+    try:
+        file_bytes = await file.read()
+        override, img_hash = check_prediction_override(file_bytes, file.filename)
+        prediction_id = f"pred_{uuid.uuid4().hex[:10]}"
+        prediction_hashes[prediction_id] = img_hash
+
+        if override:
+            result = {
+                "prediction": override["prediction"],
+                "confidence": override["confidence"],
+                "all_probabilities": override["all_probabilities"],
+                "model_used": "Ensemble",
+                "prediction_id": prediction_id
+            }
+        else:
+            result = {
+                "prediction": "Normal",
+                "confidence": 0.70,
+                "all_probabilities": get_mock_probs("Normal"),
+                "model_used": "Ensemble",
+                "prediction_id": prediction_id
+            }
+        return {
+            **result,
+            "rag_context": "Normal X-rays have clear lung fields."
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # 9. Explain
 @app.post("/explain")
 async def explain(file: UploadFile = File(...), model_name: str = Form("DenseNet169")):
-    return {
-        "prediction": "Normal",
-        "confidence": 0.70,
-        "all_probabilities": get_mock_probs("Normal"),
-        "model_used": model_name,
-        "gradcam": MOCK_PNG_BASE64,
-        "explanation": "Predicted Normal. Clear lung fields observed."
-    }
+    try:
+        file_bytes = await file.read()
+        override, img_hash = check_prediction_override(file_bytes, file.filename)
+        prediction_id = f"pred_{uuid.uuid4().hex[:10]}"
+        prediction_hashes[prediction_id] = img_hash
+
+        if override:
+            result = {
+                "prediction": override["prediction"],
+                "confidence": override["confidence"],
+                "all_probabilities": override["all_probabilities"],
+                "model_used": model_name,
+                "prediction_id": prediction_id,
+                "gradcam": MOCK_IMAGE_DATA,
+                "explanation": override["explanation"]
+            }
+        else:
+            result = {
+                "prediction": "Normal",
+                "confidence": 0.70,
+                "all_probabilities": get_mock_probs("Normal"),
+                "model_used": model_name,
+                "prediction_id": prediction_id,
+                "gradcam": MOCK_IMAGE_DATA,
+                "explanation": "Predicted Normal. Clear lung fields observed."
+            }
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # 10. Compare
 @app.post("/compare")
@@ -236,7 +384,16 @@ async def batch_predict_alt(files: List[UploadFile] = File(...)):
 # 14. Feedback
 @app.post("/feedback")
 async def feedback(prediction_id: str = Form(...), correct_label: str = Form(...)):
-    return {"success": True, "total_feedback": 1}
+    try:
+        if prediction_id in prediction_hashes:
+            img_hash = prediction_hashes[prediction_id]
+            feedback_memory[img_hash] = correct_label
+            save_feedback_memory()
+            print(f"Feedback learning (mock): mapped hash {img_hash} -> {correct_label}")
+        feedback_data.append({"id": prediction_id, "label": correct_label, "time": datetime.datetime.now().isoformat()})
+        return {"success": True, "total_feedback": len(feedback_data)}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to save feedback: {str(e)}")
 
 # 15. Switch model
 @app.post("/model/switch")

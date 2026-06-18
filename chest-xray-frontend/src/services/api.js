@@ -1,36 +1,37 @@
 import axios from 'axios';
 
 // UPDATED: Your ngrok backend URL
+// Get the current API URL from local storage or default to localhost
 const getBaseUrl = () => {
   try {
     const savedSettings = localStorage.getItem('appSettings');
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
-      if (settings.apiUrl) return settings.apiUrl;
+      if (settings.apiUrl && settings.apiUrl.includes('192.168.1.15')) {
+        settings.apiUrl = 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        return settings.apiUrl;
+      }
+      if (settings.apiUrl) return settings.apiUrl.replace(/\/$/, ''); // Remove trailing slash
     }
   } catch (e) {
     console.warn('Failed to load API URL from settings', e);
   }
-  return 'http://localhost:8000';
+  return 'https://monocyclic-shara-unrotative.ngrok-free.dev';
 };
 
-const API_BASE_URL = getBaseUrl();
-const STREAM_ENDPOINT = `${API_BASE_URL}/predict/stream`;
-const WS_ENDPOINT = `${API_BASE_URL.replace('http', 'ws')}/ws/realtime`;
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // 30 second timeout
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
   },
 });
 
-// Add request interceptor for retry logic
+// IMPORTANT: Update baseURL before every request to allow settings changes to take effect immediately
 api.interceptors.request.use(
   (config) => {
-    // Add timestamp to prevent caching issues
+    config.baseURL = getBaseUrl();
     config.params = { ...config.params, _t: Date.now() };
     return config;
   },
@@ -108,7 +109,9 @@ export const predict = (formData) => api.post('/predict', formData, multipartCon
 export const predictRealtime = (formData) => api.post('/predict/realtime', formData, multipartConfig);
 
 export const predictStream = async (formData, onMessage) => {
-  const response = await fetch(STREAM_ENDPOINT, {
+  const baseUrl = getBaseUrl();
+  const streamEndpoint = `${baseUrl}/predict/stream`;
+  const response = await fetch(streamEndpoint, {
     method: 'POST',
     body: formData,
     headers: {
@@ -239,7 +242,11 @@ export const getAnalytics = () => api.get('/analytics');
 
 export const getMetrics = () => api.get('/metrics');
 
-export const connectRealtimeWebSocket = () => new WebSocket(WS_ENDPOINT);
+export const connectRealtimeWebSocket = () => {
+  const baseUrl = getBaseUrl();
+  const wsEndpoint = baseUrl.replace('http', 'ws') + '/ws/realtime';
+  return new WebSocket(wsEndpoint);
+};
 
 // ============================================================================
 // MODELS CONFIGURATION

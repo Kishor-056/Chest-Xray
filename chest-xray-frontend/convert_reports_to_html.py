@@ -6,6 +6,7 @@ def generate_html_and_summary():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     frontend_xlsx = os.path.join(base_dir, "Test_Report.xlsx")
     backend_xlsx = os.path.join(base_dir, "Backend_Test_Report.xlsx")
+    app_xlsx = os.path.join(base_dir, "App_Test_Report.xlsx")
     output_html = os.path.join(base_dir, "Test_Report.html")
 
     # Read Frontend Report
@@ -24,14 +25,25 @@ def generate_html_and_summary():
         except Exception as e:
             print(f"Error reading backend report: {e}")
 
+    # Read App Report
+    app_df = pd.DataFrame()
+    if os.path.exists(app_xlsx):
+        try:
+            app_df = pd.read_excel(app_xlsx)
+        except Exception as e:
+            print(f"Error reading app report: {e}")
+
     # Metrics calculation
     total_frontend = len(frontend_df)
     total_backend = len(backend_df)
-    total_tests = total_frontend + total_backend
+    total_app = len(app_df)
+    total_tests = total_frontend + total_backend + total_app
 
     passed_frontend = len(frontend_df[frontend_df['Status'] == 'PASS']) if total_frontend > 0 else 0
     passed_backend = len(backend_df[backend_df['Status'] == 'PASS']) if total_backend > 0 else 0
-    total_passed = passed_frontend + passed_backend
+    passed_app = len(app_df[app_df['Status'] == 'PASS']) if total_app > 0 else 0
+    
+    total_passed = passed_frontend + passed_backend + passed_app
     total_failed = total_tests - total_passed
     pass_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0
 
@@ -51,25 +63,14 @@ def generate_html_and_summary():
                 f.write(f"- **Pass Rate:** `{pass_rate:.1f}%` 📈\n\n")
 
                 if total_frontend > 0:
-                    f.write(f"## 🖥️ Frontend E2E Tests (Selenium)\n")
-                    f.write(f"| Test Case ID | Module/Screen | Description | Expected Result | Status | Error Details |\n")
-                    f.write(f"|---|---|---|---|---|---|\n")
-                    for _, row in frontend_df.iterrows():
-                        status_emoji = "✅ PASS" if row['Status'] == 'PASS' else "❌ FAIL"
-                        steps_br = str(row['Steps']).replace('\n', '<br>')
-                        desc_br = str(row['Description']).replace('\n', '<br>')
-                        expected_br = str(row['Expected Result']).replace('\n', '<br>')
-                        f.write(f"| **{row['Test Case ID']}** | {row['Module/Screen']} | {desc_br} | {expected_br} | **{status_emoji}** | {row['Error Details']} |\n")
-                    f.write(f"\n")
-
+                    f.write(f"## 🖥️ Frontend E2E Tests (Selenium) — {total_frontend} Tests\n")
+                    f.write(f"- **Passed:** {passed_frontend} / {total_frontend} E2E test cases passed successfully.\n")
                 if total_backend > 0:
-                    f.write(f"## ⚙️ Backend API Tests\n")
-                    f.write(f"| Test Case ID | Module | Description | Status | Error Details |\n")
-                    f.write(f"|---|---|---|---|---|\n")
-                    for _, row in backend_df.iterrows():
-                        status_emoji = "✅ PASS" if row['Status'] == 'PASS' else "❌ FAIL"
-                        desc_br = str(row['Description']).replace('\n', '<br>')
-                        f.write(f"| **{row['Test Case ID']}** | {row['Module']} | {desc_br} | **{status_emoji}** | {row['Error Details']} |\n")
+                    f.write(f"## ⚙️ Backend API Tests — {total_backend} Tests\n")
+                    f.write(f"- **Passed:** {passed_backend} / {total_backend} API endpoint validations passed successfully.\n")
+                if total_app > 0:
+                    f.write(f"## 📱 Mobile App E2E Tests (Appium) — {total_app} Tests\n")
+                    f.write(f"- **Passed:** {passed_app} / {total_app} Android platform mobile test cases passed successfully.\n")
             print("Successfully wrote job summary to GITHUB_STEP_SUMMARY.")
         except Exception as e:
             print(f"Error writing to GITHUB_STEP_SUMMARY: {e}")
@@ -405,6 +406,7 @@ def generate_html_and_summary():
         <div class="tabs-header">
             <button class="tab-btn active" onclick="switchTab('frontend')">Frontend E2E Tests ({total_frontend})</button>
             <button class="tab-btn" onclick="switchTab('backend')">Backend API Tests ({total_backend})</button>
+            <button class="tab-btn" onclick="switchTab('app')">Mobile App E2E Tests ({total_app})</button>
         </div>
 
         <div class="search-container">
@@ -496,6 +498,53 @@ def generate_html_and_summary():
                 </table>
             </div>
         </div>
+
+        <!-- Mobile App Table -->
+        <div id="app" class="tab-content">
+            <div class="table-wrapper">
+                <table id="appTable">
+                    <thead>
+                        <tr>
+                            <th>Test ID</th>
+                            <th>Module</th>
+                            <th>Description</th>
+                            <th>Steps</th>
+                            <th>Expected Result</th>
+                            <th>Status</th>
+                            <th>Error Details</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>"""
+
+    if total_app > 0:
+        for _, row in app_df.iterrows():
+            badge_class = "badge-pass" if row['Status'] == 'PASS' else "badge-fail"
+            steps = str(row['Steps']).replace('\n', '<br>')
+            desc = str(row['Description']).replace('\n', '<br>')
+            expected = str(row['Expected Result']).replace('\n', '<br>')
+            html_content += f"""
+                        <tr>
+                            <td class="tc-id">{row['Test Case ID']}</td>
+                            <td>{row['Module']}</td>
+                            <td class="desc-col">{desc}</td>
+                            <td class="steps-col">{steps}</td>
+                            <td class="expected-col">{expected}</td>
+                            <td><span class="badge {badge_class}">{row['Status']}</span></td>
+                            <td class="error-col">{row['Error Details']}</td>
+                            <td style="white-space: nowrap;">{row['Timestamp']}</td>
+                        </tr>"""
+    else:
+        html_content += """
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 2rem;">No Mobile App test cases found.</td>
+                        </tr>"""
+
+    html_content += """
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -511,8 +560,10 @@ def generate_html_and_summary():
             const buttons = document.querySelectorAll('.tab-btn');
             if (tabId === 'frontend') {
                 buttons[0].classList.add('active');
-            } else {
+            } else if (tabId === 'backend') {
                 buttons[1].classList.add('active');
+            } else {
+                buttons[2].classList.add('active');
             }
             
             currentTab = tabId;

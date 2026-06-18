@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FaSave, FaRedo, FaCheckCircle } from 'react-icons/fa';
+import { 
+  FaSave, FaRedo, FaCheckCircle, FaCog, FaServer, 
+  FaPalette, FaCommentMedical, FaInfoCircle, FaLink, FaDatabase 
+} from 'react-icons/fa';
 import { switchModel, submitFeedback, getModels, MODEL_OPTIONS, TOTAL_ENDPOINTS } from '../services/api';
 
 function Settings() {
@@ -12,7 +15,7 @@ function Settings() {
     confidence: '',
     notes: ''
   });
-  const [apiUrl, setApiUrl] = useState('http://localhost:8000');
+  const [apiUrl, setApiUrl] = useState('https://monocyclic-shara-unrotative.ngrok-free.dev');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [theme, setTheme] = useState('light');
   const [loading, setLoading] = useState(false);
@@ -36,8 +39,14 @@ function Settings() {
     const savedSettings = localStorage.getItem('appSettings');
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
+      let currentApiUrl = settings.apiUrl;
+      if (currentApiUrl && currentApiUrl.includes('192.168.1.15')) {
+        currentApiUrl = 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+        settings.apiUrl = currentApiUrl;
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+      }
       setDefaultModel(settings.defaultModel || 'ensemble');
-      setApiUrl(settings.apiUrl || 'http://localhost:8000');
+      setApiUrl(currentApiUrl || 'https://monocyclic-shara-unrotative.ngrok-free.dev');
       setAutoRefresh(settings.autoRefresh || false);
       setTheme(settings.theme || 'light');
     }
@@ -46,12 +55,16 @@ function Settings() {
   const handleSaveSettings = () => {
     const settings = {
       defaultModel,
-      apiUrl,
+      apiUrl: apiUrl.trim().replace(/\/$/, ''), // Clean URL
       autoRefresh,
       theme
     };
 
     localStorage.setItem('appSettings', JSON.stringify(settings));
+
+    // Notify App component to refresh connection
+    window.dispatchEvent(new CustomEvent('settingsUpdated'));
+
     toast.success('Settings saved successfully!');
   };
 
@@ -111,7 +124,7 @@ function Settings() {
   const handleResetSettings = () => {
     localStorage.removeItem('appSettings');
     setDefaultModel('ensemble');
-    setApiUrl('http://localhost:8000');
+    setApiUrl('https://monocyclic-shara-unrotative.ngrok-free.dev');
     setAutoRefresh(false);
     setTheme('light');
     toast.info('Settings reset to defaults');
@@ -137,201 +150,267 @@ function Settings() {
   return (
     <div className="settings">
       <div className="panel-header">
-        <h1>Settings</h1>
-        <p>Configure application preferences and submit feedback</p>
+        <h1>Settings & Configuration</h1>
+        <p>Configure default classification parameters, API servers, appearances, and feedback</p>
       </div>
 
-      <div className="settings-content">
-        {/* Model Settings */}
-        <div className="settings-section">
-          <h2>Model Settings</h2>
+      <div className="settings-grid">
+        {/* Left Column: Core Configuration */}
+        <div className="settings-col">
+          {/* Model Settings Card */}
+          <div className="settings-card model-settings-card">
+            <div className="card-header-with-icon">
+              <FaCog className="header-icon" />
+              <div>
+                <h2>Model Preferences</h2>
+                <p>Configure the default AI neural classifier model</p>
+              </div>
+            </div>
 
-          <div className="form-group">
-            <label>Default Model</label>
-            <select
-              value={defaultModel}
-              onChange={(e) => setDefaultModel(e.target.value)}
-            >
-              {MODEL_OPTIONS.map(model => (
-                <option key={model.id} value={model.id}>
-                  {model.name} - {model.description}
-                </option>
-              ))}
-            </select>
+            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label>Default AI Network Model</label>
+              <select
+                value={defaultModel}
+                onChange={(e) => setDefaultModel(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                {MODEL_OPTIONS.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} — {model.description}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn-secondary"
+                onClick={handleSwitchModel}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: '#f3f4f6',
+                  color: '#374151',
+                  borderRadius: '10px',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  border: '1px solid #d1d5db',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                Apply Model Switch
+              </button>
+            </div>
+
+            {displayedAvailableModels.length > 0 && (
+              <div className="available-models">
+                <h4>Active Server Models ({displayedAvailableModels.length})</h4>
+                <div className="models-list">
+                  {displayedAvailableModels.map((model) => (
+                    <div key={model.id} className="model-item">
+                      <FaCheckCircle className="check-icon" />
+                      <span>
+                        <strong style={{ display: 'inline', color: '#374151', fontSize: '13px' }}>{model.name}</strong>
+                        {model.description && (
+                          <small className="model-description">{model.description}</small>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* API Server Card */}
+          <div className="settings-card api-settings-card">
+            <div className="card-header-with-icon">
+              <FaServer className="header-icon" />
+              <div>
+                <h2>API Network Configuration</h2>
+                <p>Configure server connection and communication hosts</p>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Backend API Base URL</label>
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={(e) => setApiUrl(e.target.value)}
+                placeholder="https://monocyclic-shara-unrotative.ngrok-free.dev"
+              />
+              <small>Specify the network URL mapping to your server endpoint</small>
+            </div>
+
+            <div className="form-group checkbox-group" style={{ margin: 0 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                Auto-refresh system status (every 30 seconds)
+              </label>
+            </div>
+          </div>
+
+          {/* Appearance Card */}
+          <div className="settings-card appearance-card">
+            <div className="card-header-with-icon">
+              <FaPalette className="header-icon" />
+              <div>
+                <h2>Appearance Options</h2>
+                <p>Customize the visual UI theme of the workspace</p>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Theme Choice</label>
+              <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+                <option value="light">Light Mode (Clean White)</option>
+                <option value="dark">Dark Mode (Sleek Slate)</option>
+                <option value="auto">Auto (Match System Preferences)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Feedback & System Info */}
+        <div className="settings-col">
+          {/* Feedback Card */}
+          <div className="settings-card feedback-card">
+            <div className="card-header-with-icon">
+              <FaCommentMedical className="header-icon" />
+              <div>
+                <h2>Clinical Feedback Portal</h2>
+                <p>Provide diagnostic feedback to train the AI neural classifier</p>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Model Prediction ID</label>
+              <input
+                type="text"
+                value={feedback.predictionId}
+                onChange={(e) => setFeedback({ ...feedback, predictionId: e.target.value })}
+                placeholder="e.g. pred_8f5da02a"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Correct Clinical Diagnosis</label>
+              <input
+                type="text"
+                value={feedback.correctLabel}
+                onChange={(e) => setFeedback({ ...feedback, correctLabel: e.target.value })}
+                placeholder="e.g. Pneumonia, Normal"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Diagnosis Confidence (0.00 — 1.00)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={feedback.confidence}
+                onChange={(e) => setFeedback({ ...feedback, confidence: e.target.value })}
+                placeholder="e.g. 0.95"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Clinical Notes</label>
+              <textarea
+                value={feedback.notes}
+                onChange={(e) => setFeedback({ ...feedback, notes: e.target.value })}
+                placeholder="Details of structural abnormalities, consolidated regions, opacity patterns..."
+                rows={4}
+              />
+            </div>
+
             <button
-              className="btn-secondary"
-              onClick={handleSwitchModel}
+              className="btn-primary"
+              onClick={handleSubmitFeedback}
               disabled={loading}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                color: 'white',
+                borderRadius: '12px',
+                fontWeight: 600,
+                fontSize: '15px',
+                boxShadow: '0 4px 12px rgba(236, 72, 153, 0.25)',
+                transition: 'all 0.2s',
+                border: 'none'
+              }}
             >
-              Apply Model Switch
+              Submit Diagnostic Feedback
             </button>
           </div>
 
-          {displayedAvailableModels.length > 0 && (
-            <div className="available-models">
-              <h4>Available Models ({displayedAvailableModels.length})</h4>
-              <div className="models-list">
-                {displayedAvailableModels.map((model) => (
-                  <div key={model.id} className="model-item">
-                    <FaCheckCircle className="check-icon" />
-                    <span>
-                      {model.name}
-                      {model.description && (
-                        <small className="model-description">{model.description}</small>
-                      )}
-                    </span>
-                  </div>
-                ))}
+          {/* Diagnostic Info Card */}
+          <div className="settings-card sysinfo-card">
+            <div className="card-header-with-icon">
+              <FaInfoCircle className="header-icon" />
+              <div>
+                <h2>System & Diagnostic Info</h2>
+                <p>Technical metrics of the application stack</p>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* API Configuration */}
-        <div className="settings-section">
-          <h2>API Configuration</h2>
-
-          <div className="form-group">
-            <label>Backend API URL</label>
-            <input
-              type="text"
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="https://monocyclic-shara-unrotative.ngrok-free.dev"
-            />
-            <small>Enter the base URL for the backend API</small>
-          </div>
-
-          <div className="form-group checkbox-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
-              Auto-refresh system status
-            </label>
-          </div>
-        </div>
-
-        {/* Appearance Settings */}
-        <div className="settings-section">
-          <h2>Appearance</h2>
-
-          <div className="form-group">
-            <label>Theme</label>
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto (System)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Feedback Form */}
-        <div className="settings-section">
-          <h2>Submit Feedback</h2>
-          <p className="section-description">
-            Help us improve the AI models by providing feedback on predictions
-          </p>
-
-          <div className="form-group">
-            <label>Model Prediction</label>
-            <input
-              type="text"
-              value={feedback.predictionId}
-              onChange={(e) => setFeedback({ ...feedback, predictionId: e.target.value })}
-              placeholder="Prediction ID from recent result"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Actual Diagnosis</label>
-            <input
-              type="text"
-              value={feedback.correctLabel}
-              onChange={(e) => setFeedback({ ...feedback, correctLabel: e.target.value })}
-              placeholder="e.g., Pneumonia"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Confidence Level (0-1)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              value={feedback.confidence}
-              onChange={(e) => setFeedback({ ...feedback, confidence: e.target.value })}
-              placeholder="e.g., 0.95"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Comments (Optional)</label>
-            <textarea
-              value={feedback.notes}
-              onChange={(e) => setFeedback({ ...feedback, notes: e.target.value })}
-              placeholder="Additional context or corrections..."
-              rows={4}
-            />
-          </div>
-
-          <button
-            className="btn-primary"
-            onClick={handleSubmitFeedback}
-            disabled={loading}
-          >
-            Submit Feedback
-          </button>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="settings-actions">
-          <button className="btn-save" onClick={handleSaveSettings}>
-            <FaSave /> Save Settings
-          </button>
-          <button className="btn-reset" onClick={handleResetSettings}>
-            <FaRedo /> Reset to Defaults
-          </button>
-        </div>
-
-        {/* System Information */}
-        <div className="settings-section">
-          <h2>System Information</h2>
-          <div className="system-info-grid">
-            <div className="info-row">
-              <span className="info-label">Frontend Version:</span>
-              <span className="info-value">1.0.0</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">Total Endpoints:</span>
-              <span className="info-value">{TOTAL_ENDPOINTS}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">Available Models:</span>
-              <span className="info-value">{MODEL_OPTIONS.length}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">API Status:</span>
-              <span className="info-value status-online">Connected</span>
+            <div className="system-info-grid">
+              <div className="info-row">
+                <span className="info-label"><FaLink style={{ marginRight: 6, color: '#3b82f6' }} /> Frontend Version:</span>
+                <span className="info-value">1.0.0</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label"><FaDatabase style={{ marginRight: 6, color: '#10b981' }} /> Total Endpoints:</span>
+                <span className="info-value">{TOTAL_ENDPOINTS} Active API Points</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">Available Classifier Models:</span>
+                <span className="info-value">{MODEL_OPTIONS.length} Models Loaded</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">API Server Status:</span>
+                <span className="info-value status-online">Connected</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* About */}
-        <div className="settings-section about-section">
-          <h2>About</h2>
-          <p>
-            <strong>Chest X-Ray AI Analysis System</strong><br />
-            Complete medical imaging analysis platform with {TOTAL_ENDPOINTS} API endpoints and {MODEL_OPTIONS.length} state-of-the-art AI models.
-          </p>
-          <p>
-            Features include: Single & batch predictions, model comparison, GradCAM visualization,
-            clinical reports, RAG-enhanced medical knowledge, and comprehensive analytics.
-          </p>
+          {/* About Section */}
+          <div className="settings-card about-section">
+            <div className="card-header-with-icon">
+              <FaInfoCircle className="header-icon" style={{ color: '#64748b', background: '#f1f5f9' }} />
+              <div>
+                <h2>About Project</h2>
+                <p>AI Chest X-Ray diagnostic workspace</p>
+              </div>
+            </div>
+            <p>
+              <strong>Chest X-Ray AI Analysis Workspace</strong> is a complete clinical imaging processing platform incorporating {TOTAL_ENDPOINTS} network API endpoints and {MODEL_OPTIONS.length} deep neural network models.
+            </p>
+            <p>
+              Integrated features: Single image predictions, GradCAM heatmaps, batch pipelines, model benchmarking, automated clinical reports, and structured RAG-enhanced diagnostic databases.
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="settings-actions">
+        <button className="btn-save" onClick={handleSaveSettings}>
+          <FaSave /> Save Workspace Settings
+        </button>
+        <button className="btn-reset" onClick={handleResetSettings}>
+          <FaRedo /> Reset Settings to Defaults
+        </button>
       </div>
     </div>
   );

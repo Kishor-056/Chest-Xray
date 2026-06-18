@@ -64,10 +64,13 @@ function PredictionPanel() {
       // Backend Validation (Optional - try/catch to handle 404)
       try {
         const validationResponse = await validateXray(formData);
-        if (validationResponse.data && !validationResponse.data.is_valid && validationResponse.data.is_valid !== undefined) {
-          toast.error(validationResponse.data.message || 'Server: Image is not a valid chest X-ray');
-          setLoading(false);
-          return;
+        if (validationResponse.data) {
+          const isValid = validationResponse.data.is_xray ?? validationResponse.data.is_valid;
+          if (isValid === false) {
+            toast.error(validationResponse.data.message || 'Server: Image is not a valid chest X-ray');
+            setLoading(false);
+            return;
+          }
         }
       } catch (err) {
         // Ignore 404 from backend validation, as we already validated locally
@@ -112,6 +115,7 @@ function PredictionPanel() {
       });
 
       setResult(normalized);
+      saveToLocalHistory(normalized, selectedFile.name);
 
       // ── Generate Advanced XAI Report ────────────────────────────────────
       try {
@@ -378,5 +382,23 @@ function PredictionPanel() {
     </div>
   );
 }
+
+const saveToLocalHistory = (result, fileName) => {
+  try {
+    const historyItem = {
+      filename: fileName,
+      prediction: result.prediction,
+      confidence: result.confidence,
+      model: result.model_used,
+      timestamp: result.timestamp || new Date().toISOString(),
+      prediction_id: result.prediction_id
+    };
+    const localHistory = JSON.parse(localStorage.getItem('localPredictions') || '[]');
+    const updatedHistory = [historyItem, ...localHistory.slice(0, 9)];
+    localStorage.setItem('localPredictions', JSON.stringify(updatedHistory));
+  } catch (e) {
+    console.warn('Failed to save prediction to local history', e);
+  }
+};
 
 export default PredictionPanel;

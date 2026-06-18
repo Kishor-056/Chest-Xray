@@ -81,15 +81,52 @@ const getPixelStats = (file) =>
                 let colorDeviationSum = 0; // sum of per-pixel channel deviation from mean
                 const total = SIZE * SIZE;
 
-                for (let i = 0; i < d.length; i += 4) {
-                    const r = d[i], g = d[i + 1], b = d[i + 2];
-                    const bri = (r + g + b) / 3;
-                    sum += bri;
-                    if (bri > 195) nearWhiteCount++;
-                    if (bri < 30) nearBlackCount++;
-                    // Per-pixel colorfulness: average absolute deviation of channels from their mean
-                    const dev = (Math.abs(r - bri) + Math.abs(g - bri) + Math.abs(b - bri)) / 3;
-                    colorDeviationSum += dev;
+                const marginSize = Math.floor(SIZE * 0.08); // 8% of width
+                const cornerSize = Math.floor(SIZE * 0.10); // 10% of corners
+                let leftMarginSum = 0;
+                let rightMarginSum = 0;
+                let leftMarginPixels = 0;
+                let rightMarginPixels = 0;
+
+                let tlSum = 0, trSum = 0, blSum = 0, brSum = 0;
+                const cornerPixels = cornerSize * cornerSize;
+
+                for (let y = 0; y < SIZE; y++) {
+                    for (let x = 0; x < SIZE; x++) {
+                        const i = (y * SIZE + x) * 4;
+                        const r = d[i], g = d[i + 1], b = d[i + 2];
+                        const bri = (r + g + b) / 3;
+                        sum += bri;
+                        if (bri > 195) nearWhiteCount++;
+                        if (bri < 30) nearBlackCount++;
+                        // Per-pixel colorfulness: average absolute deviation of channels from their mean
+                        const dev = (Math.abs(r - bri) + Math.abs(g - bri) + Math.abs(b - bri)) / 3;
+                        colorDeviationSum += dev;
+
+                        // Margins
+                        if (x < marginSize) {
+                            leftMarginSum += bri;
+                            leftMarginPixels++;
+                        }
+                        if (x >= SIZE - marginSize) {
+                            rightMarginSum += bri;
+                            rightMarginPixels++;
+                        }
+
+                        // Corners
+                        if (y < cornerSize && x < cornerSize) {
+                            tlSum += bri;
+                        }
+                        if (y < cornerSize && x >= SIZE - cornerSize) {
+                            trSum += bri;
+                        }
+                        if (y >= SIZE - cornerSize && x < cornerSize) {
+                            blSum += bri;
+                        }
+                        if (y >= SIZE - cornerSize && x >= SIZE - cornerSize) {
+                            brSum += bri;
+                        }
+                    }
                 }
 
                 resolve({
@@ -99,6 +136,9 @@ const getPixelStats = (file) =>
                     nearWhiteRatio: nearWhiteCount / total,   // fraction of near-white pixels
                     nearBlackRatio: nearBlackCount / total,
                     avgColorDeviation: colorDeviationSum / total, // 0 = pure grayscale, high = colorful
+                    leftMarginMean: leftMarginSum / leftMarginPixels,
+                    rightMarginMean: rightMarginSum / rightMarginPixels,
+                    cornerMeans: [tlSum / cornerPixels, trSum / cornerPixels, blSum / cornerPixels, brSum / cornerPixels],
                     imageElement: img,
                 });
             };
@@ -127,7 +167,7 @@ export const validateImageLocally = async (file) => {
         return { is_valid: false, confidence: 0, reasons: [msg], message: msg };
     }
 
-    const { width, height, avgBrightness, nearWhiteRatio, nearBlackRatio, avgColorDeviation, imageElement } = stats;
+    const { width, height, avgBrightness, nearWhiteRatio, nearBlackRatio, avgColorDeviation, leftMarginMean, rightMarginMean, cornerMeans, imageElement } = stats;
 
     // ── Step 3: Minimum size ──────────────────────────────────────────────────
     if (width < 80 || height < 80) {
@@ -158,6 +198,25 @@ export const validateImageLocally = async (file) => {
         const msg =
             `❌ This appears to be a colour image (color deviation: ${avgColorDeviation.toFixed(1)}). ` +
             `Chest X-rays are always grayscale. Please upload a valid medical X-ray image.`;
+        return { is_valid: false, confidence: 0, reasons: [msg], message: msg };
+    }
+
+    // ── Step 5.5: EXTREMITY / HAND X-RAY DETECTOR ─────────────────────────────
+    //
+    //  Extremity X-rays (hands, feet, wrists, ankles) leave wide, pure black margins
+    //  on the left and right margins and corners. Chest X-rays cover the entire collimated
+    //  field, so their borders and corners contain soft tissue and bone (gray/white, not black).
+    //
+    let blackCornersCount = 0;
+    for (const mean of cornerMeans) {
+        if (mean < 30) blackCornersCount++;
+    }
+
+    if ((leftMarginMean < 30 && rightMarginMean < 30) || blackCornersCount >= 3) {
+        const msg =
+            `This image appears to be an extremity or hand X-ray. ` +
+            `The system is trained only on Chest X-rays for pneumonia/tuberculosis/COVID-19 detection. ` +
+            `Please upload a valid chest X-ray image.`;
         return { is_valid: false, confidence: 0, reasons: [msg], message: msg };
     }
 

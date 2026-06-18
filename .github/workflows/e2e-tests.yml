@@ -1,5 +1,9 @@
 name: E2E Automation Testing
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main ]
@@ -61,6 +65,10 @@ jobs:
       run: python selenium_e2e_tests.py
       working-directory: ./chest-xray-frontend
 
+    - name: Run Appium E2E Tests
+      run: python appium_e2e_tests.py
+      working-directory: ./chest-xray-frontend
+
     - name: Generate Backend Report
       run: python generate_backend_report.py
       working-directory: ./chest-xray-frontend
@@ -78,6 +86,7 @@ jobs:
         path: |
           ./chest-xray-frontend/Test_Report.xlsx
           ./chest-xray-frontend/Backend_Test_Report.xlsx
+          ./chest-xray-frontend/App_Test_Report.xlsx
           ./chest-xray-frontend/Test_Report.html
         if-no-files-found: error
         retention-days: 14
