@@ -1,14 +1,19 @@
 import axios from 'axios';
 
-// UPDATED: Your ngrok backend URL
-// Get the current API URL from local storage or default to localhost
+// Helper to dynamically resolve the default backend URL based on platform
+export const getDefaultApiUrl = () => {
+  const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+  return isCapacitor ? 'http://172.23.51.27:8000' : 'http://localhost:8000';
+};
+
+// Get the current API URL from local storage or default to local IP/localhost
 const getBaseUrl = () => {
   try {
     const savedSettings = localStorage.getItem('appSettings');
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
-      if (settings.apiUrl && settings.apiUrl.includes('192.168.1.15')) {
-        settings.apiUrl = 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+      if (settings.apiUrl && (settings.apiUrl.includes('192.168.1.15') || settings.apiUrl.includes('ngrok-free.dev'))) {
+        settings.apiUrl = getDefaultApiUrl();
         localStorage.setItem('appSettings', JSON.stringify(settings));
         return settings.apiUrl;
       }
@@ -17,7 +22,7 @@ const getBaseUrl = () => {
   } catch (e) {
     console.warn('Failed to load API URL from settings', e);
   }
-  return 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+  return getDefaultApiUrl();
 };
 
 const api = axios.create({

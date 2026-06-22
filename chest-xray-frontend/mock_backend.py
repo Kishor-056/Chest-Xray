@@ -1,10 +1,12 @@
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, WebSocket
+from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict
 import datetime
 import base64
+import asyncio
 
 app = FastAPI(title="Mock Chest X-Ray AI API", version="1.0.0")
 
@@ -422,5 +424,78 @@ async def analytics():
 async def history(patient_id: str):
     return {"patient_id": patient_id, "history": []}
 
+# 19. Validate X-ray image
+@app.post("/validate/xray")
+async def validate_xray(file: UploadFile = File(None)):
+    return {
+        "is_xray": True,
+        "confidence": 0.95,
+        "message": "Valid chest X-ray image",
+        "details": {
+            "width": 224,
+            "height": 224,
+            "aspect_ratio": 1.0,
+            "color_variance": 0.5,
+            "mean_intensity": 128.0,
+            "edge_density": 10.0
+        },
+        "reasons": []
+    }
+
+# 20. Stream predict
+@app.post("/predict/stream")
+async def stream_predict(file: UploadFile = File(...)):
+    async def generate():
+        yield json.dumps({"status": "processing"}) + "\n"
+        await asyncio.sleep(0.5)
+        result = {
+            "success": True,
+            "prediction": "Normal",
+            "confidence": 0.70,
+            "all_probabilities": get_mock_probs("Normal"),
+            "model_used": "Ensemble",
+            "prediction_id": f"pred_{uuid.uuid4().hex[:10]}",
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        yield json.dumps({"status": "complete", "result": result}) + "\n"
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+# 21. Export package
+@app.post("/export/package")
+async def export_package(file: UploadFile = File(...), patient_id: str = Form("P001")):
+    mock_zip_content = b"Mock zip package content for patient " + patient_id.encode('utf-8')
+    return Response(content=mock_zip_content, media_type="application/zip", headers={
+        "Content-Disposition": f"attachment; filename=analysis_package_{patient_id}.zip"
+    })
+
+# 22. Download file
+@app.get("/download/{filename}")
+async def download(filename: str):
+    mock_file_content = b"Mock download file content: " + filename.encode('utf-8')
+    return Response(content=mock_file_content, media_type="application/octet-stream", headers={
+        "Content-Disposition": f"attachment; filename={filename}"
+    })
+
+# 23. WebSocket real-time
+@app.websocket("/ws/realtime")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            result = {
+                "prediction": "Normal",
+                "confidence": 0.70,
+                "all_probabilities": get_mock_probs("Normal"),
+                "model_used": "Ensemble"
+            }
+            await websocket.send_json(result)
+    except Exception as e:
+        print(f"WebSocket closed: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

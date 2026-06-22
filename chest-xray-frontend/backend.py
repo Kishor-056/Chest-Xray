@@ -8,6 +8,11 @@ All features are working code, not stubs
 import subprocess
 import sys
 import os
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
 import time
 import warnings
 from datetime import datetime

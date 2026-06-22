@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FaUser, FaLock, FaHeartbeat, FaEnvelope, FaIdCard, FaKey, FaArrowLeft } from 'react-icons/fa';
+import { FaUser, FaLock, FaHeartbeat, FaEnvelope, FaIdCard, FaKey, FaArrowLeft, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 function Login({ onLogin }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot_request' | 'forgot_verify' | 'forgot_reset'
@@ -9,12 +9,15 @@ function Login({ onLogin }) {
   // Form Field States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // Registration States
   const [name, setName] = useState('');
   const [licenseId, setLicenseId] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Forgot Password States
   const [resetEmail, setResetEmail] = useState('');
@@ -22,6 +25,8 @@ function Login({ onLogin }) {
   const [enteredOtp, setEnteredOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   // Initialize persistent user database in localStorage
   useEffect(() => {
@@ -288,15 +293,26 @@ function Login({ onLogin }) {
 
             <div className="login-form-group">
               <label><FaLock className="input-icon" /> Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                disabled={loading}
-                autoComplete="current-password"
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  disabled={loading}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="login-btn" disabled={loading}>
@@ -354,26 +370,48 @@ function Login({ onLogin }) {
 
             <div className="login-form-group">
               <label><FaLock className="input-icon" /> Password</label>
-              <input
-                type="password"
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                placeholder="••••••••••••"
-                disabled={loading}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showSignupPassword ? "text" : "password"}
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowSignupPassword(!showSignupPassword)}
+                  disabled={loading}
+                  aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                >
+                  {showSignupPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <div className="login-form-group">
               <label><FaLock className="input-icon" /> Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••••••"
-                disabled={loading}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={loading}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="login-btn" disabled={loading}>
@@ -445,26 +483,48 @@ function Login({ onLogin }) {
           <form onSubmit={handleForgotReset} className="login-form">
             <div className="login-form-group">
               <label><FaLock className="input-icon" /> New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••••••"
-                disabled={loading}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  disabled={loading}
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <div className="login-form-group">
               <label><FaLock className="input-icon" /> Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmNewPassword}
-                onChange={(e) => setConfirmNewPassword(e.target.value)}
-                placeholder="••••••••••••"
-                disabled={loading}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmNewPassword ? "text" : "password"}
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                  disabled={loading}
+                  aria-label={showConfirmNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmNewPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="login-btn" disabled={loading}>

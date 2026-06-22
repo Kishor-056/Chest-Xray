@@ -2,7 +2,7 @@ import requests
 import sys
 
 # Test the backend connection
-backend_url = "https://monocyclic-shara-unrotative.ngrok-free.dev"
+backend_url = "http://localhost:8000"
 
 print(f"Testing connection to: {backend_url}")
 print("=" * 60)

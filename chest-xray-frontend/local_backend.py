@@ -15,6 +15,11 @@ SETUP:
 import subprocess
 import sys
 import os
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
 import time
 import warnings
 from datetime import datetime
@@ -705,16 +710,48 @@ async def uncertainty(file: UploadFile = File(...), n_iterations: int = Form(10)
 # 18. Batch predict
 @app.post("/predict/batch")
 async def batch_predict(files: List[UploadFile] = File(...), model_name: str = Form("DenseNet169")):
+    import time
+    start_time = time.time()
     results = []
+    
+    disease_distribution = defaultdict(int)
+    total_confidence = 0.0
+    success_count = 0
+    
     for file in files:
-        image = Image.open(BytesIO(await file.read()))
-        if model_name.lower() == "ensemble":
-            result = ensemble_predict(preprocess_image(image))
-        else:
-            result = predict_single(trained_models.get(model_name, trained_models['DenseNet169']),
-                                   preprocess_image(image), model_name)
-        results.append({"filename": file.filename, **result})
-    return {"success": True, "results": results, "total_processed": len(results)}
+        try:
+            image = Image.open(BytesIO(await file.read()))
+            if model_name.lower() == "ensemble":
+                result = ensemble_predict(preprocess_image(image))
+            else:
+                result = predict_single(trained_models.get(model_name, trained_models['DenseNet169']),
+                                       preprocess_image(image), model_name)
+            
+            results.append({"filename": file.filename, **result})
+            disease_distribution[result['prediction']] += 1
+            total_confidence += result['confidence']
+            success_count += 1
+        except Exception as e:
+            results.append({"filename": file.filename, "error": str(e), "prediction": "Error", "confidence": 0.0})
+            disease_distribution["Error"] += 1
+            
+    processing_time = time.time() - start_time
+    total_files = len(files)
+    
+    statistics = {
+        "total": total_files,
+        "success_rate": float(success_count) / total_files if total_files > 0 else 0.0,
+        "avg_confidence": float(total_confidence) / success_count if success_count > 0 else 0.0,
+        "disease_distribution": dict(disease_distribution)
+    }
+    
+    return {
+        "success": True,
+        "results": results,
+        "statistics": statistics,
+        "processing_time": processing_time,
+        "total_processed": total_files
+    }
 
 # 19. Advanced batch predict
 @app.post("/predict/batch/advanced")

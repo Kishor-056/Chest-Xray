@@ -4,7 +4,7 @@ import {
   FaSave, FaRedo, FaCheckCircle, FaCog, FaServer, 
   FaPalette, FaCommentMedical, FaInfoCircle, FaLink, FaDatabase 
 } from 'react-icons/fa';
-import { switchModel, submitFeedback, getModels, MODEL_OPTIONS, TOTAL_ENDPOINTS } from '../services/api';
+import { switchModel, submitFeedback, getModels, MODEL_OPTIONS, TOTAL_ENDPOINTS, getDefaultApiUrl } from '../services/api';
 
 function Settings() {
   const [defaultModel, setDefaultModel] = useState('ensemble');
@@ -15,7 +15,7 @@ function Settings() {
     confidence: '',
     notes: ''
   });
-  const [apiUrl, setApiUrl] = useState('https://monocyclic-shara-unrotative.ngrok-free.dev');
+  const [apiUrl, setApiUrl] = useState(getDefaultApiUrl());
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [theme, setTheme] = useState('light');
   const [loading, setLoading] = useState(false);
@@ -40,13 +40,13 @@ function Settings() {
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
       let currentApiUrl = settings.apiUrl;
-      if (currentApiUrl && currentApiUrl.includes('192.168.1.15')) {
-        currentApiUrl = 'https://monocyclic-shara-unrotative.ngrok-free.dev';
+      if (currentApiUrl && (currentApiUrl.includes('192.168.1.15') || currentApiUrl.includes('ngrok-free.dev'))) {
+        currentApiUrl = getDefaultApiUrl();
         settings.apiUrl = currentApiUrl;
         localStorage.setItem('appSettings', JSON.stringify(settings));
       }
       setDefaultModel(settings.defaultModel || 'ensemble');
-      setApiUrl(currentApiUrl || 'https://monocyclic-shara-unrotative.ngrok-free.dev');
+      setApiUrl(currentApiUrl || getDefaultApiUrl());
       setAutoRefresh(settings.autoRefresh || false);
       setTheme(settings.theme || 'light');
     }
@@ -124,7 +124,7 @@ function Settings() {
   const handleResetSettings = () => {
     localStorage.removeItem('appSettings');
     setDefaultModel('ensemble');
-    setApiUrl('https://monocyclic-shara-unrotative.ngrok-free.dev');
+    setApiUrl(getDefaultApiUrl());
     setAutoRefresh(false);
     setTheme('light');
     toast.info('Settings reset to defaults');
@@ -240,7 +240,7 @@ function Settings() {
                 type="text"
                 value={apiUrl}
                 onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://monocyclic-shara-unrotative.ngrok-free.dev"
+                placeholder={getDefaultApiUrl()}
               />
               <small>Specify the network URL mapping to your server endpoint</small>
             </div>

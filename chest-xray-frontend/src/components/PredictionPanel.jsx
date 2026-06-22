@@ -126,10 +126,18 @@ function PredictionPanel() {
           gcFormData.append('file', selectedFile);
           gcFormData.append('model_name', selectedModel);
           const gcRes = await generateGradCAM(gcFormData);
-          if (gcRes.data?.gradcam_image) {
-            gradcamUrl = `data:image/png;base64,${gcRes.data.gradcam_image}`;
+          if (gcRes.data?.gradcam) {
+            gradcamUrl = gcRes.data.gradcam.startsWith('data:')
+              ? gcRes.data.gradcam
+              : `data:image/png;base64,${gcRes.data.gradcam}`;
+          } else if (gcRes.data?.gradcam_image) {
+            gradcamUrl = gcRes.data.gradcam_image.startsWith('data:')
+              ? gcRes.data.gradcam_image
+              : `data:image/png;base64,${gcRes.data.gradcam_image}`;
           } else if (gcRes.data?.heatmap_base64) {
-            gradcamUrl = `data:image/png;base64,${gcRes.data.heatmap_base64}`;
+            gradcamUrl = gcRes.data.heatmap_base64.startsWith('data:')
+              ? gcRes.data.heatmap_base64
+              : `data:image/png;base64,${gcRes.data.heatmap_base64}`;
           }
         } catch (gcErr) {
           console.warn('GradCAM not available:', gcErr.message);
